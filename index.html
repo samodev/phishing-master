@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="initial-scale=0.5, maximum-scale=1">
+    <link rel="shortcut icon" href="favicon.ico">
+    <title>polkadot{.js}/phishing</title>
+    <style>
+      :root {
+        --bg-box: rgba(255, 255, 255, 0.85);
+        --color: #4e4e4e;
+        --font-mono: 0.9em Consolas, monaco, "Ubuntu Mono", "Liberation Mono", "Courier New", Courier, monospace;
+        --font-sans: 1em "-apple-system", BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Open Sans", "Helvetica Neue", Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+      }
+
+      a { color: #ff8c00 !important; text-decoration: none }
+      body { color: var(--color); font: var(--font-sans); height: 100vh; overflow-x: hidden; padding: 0 }
+      h3 { font: var(--font-sans); font-weight: 400; margin: 0; opacity: 0.5; text-transform: lowercase }
+      p { line-height: 1.5rem; margin: 0.75rem 0 }
+      input { color: var(--color); display: block; opacity: 0.85; padding: 0.5rem 0.75rem; width: 100% }
+      input:focus { outline: none }
+
+      .box { background: var(--bg-box); border-radius: 0.25rem; flex: 1 1; margin: 0.5rem; min-width: 15rem; max-width: 40rem; padding: 1rem 1.5rem; text-align: center; white-space: nowrap; width: 40rem; z-index: 2 }
+      .buttons { display: none; margin: 2rem 0 1.5rem }
+      .buttons a { border: 1px solid #eee; border-radius: 0.25rem; margin: 0 0.25rem; padding: 0.5rem 0.75rem }
+      .buttons .invert { color: var(--bg-box) !important }
+      .container { align-items: center; display: flex; flex-direction: column; justify-content: center; margin-top: 4rem; padding-bottom: 2rem }
+      .desc { font-size:  0.95rem; opacity: 0.85; white-space: normal }
+      .dot { border-radius: 50%; position: absolute; z-index: 0 }
+      .header { align-items: center; background: var(--bg-box); display: flex; left: 0; justify-content: space-between; padding: 0.5rem 1rem; position: fixed; right: 0; top: 0; z-index: 2 }
+      .header div.logo { display: flex; align-items: center }
+      .header img { height: 1.5rem; margin-right: 0.5rem; width: 1.5rem }
+      .hidden { display: none }
+      .row { align-items: center; display: flex; justify-content: center }
+
+      p.search { padding: 0 1rem }
+      input#search { border: 1px solid #888; border-radius: 0.25rem; display: none }
+
+      table { margin: 0 }
+      td:first-child { max-width: 29rem; overflow: hidden; text-overflow: ellipsis }
+      td:not(.centered) { font: var(--font-mono); padding: 0.25rem 0.5rem; text-align: right }
+      td.centered { opacity: 0.65; padding: 1rem; text-align: center }
+      td:nth-child(2) { width: 100% }
+      tr + tr > td > h3 { margin-top: 0.5rem }
+      td > span { border-radius: 0.25em; color: white; font-size: 0.75rem; padding: 0.125em 0.375em }
+      td > span.active { background: darkred }
+      td > span.inactive { background: darkgrey; display: none }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="row">
+        <div class="box">
+          <p class="desc">A community driven curated list of potentially less-than-honest operators.</p>
+          <p class="desc">Any additions can be made by editing <a href="https://github.com/polkadot-js/phishing/edit/master/all.json">phishing/all.json</a> and adding any new sites in alphabetical order. In the same vein addresses can be added in <a href="https://github.com/polkadot-js/phishing/edit/master/address.json">phishing/address.json</a>. For any discrepancies or requests <a href="https://github.com/polkadot-js/phishing/issues">log an issue</a>.</p>
+          <p class="desc">The following extensions and wallets have blocking functionality based on these lists: <a href="https://github.com/polkadot-js/extension">polkadot{.js} extension</a>, <a href="https://polkadot.js.org/apps">polkadot{.js} apps</a>, <a href="https://fearlesswallet.io/">Fearless Wallet</a> and <a href="https://subwallet.app/">SubWallet</a>.</p>
+          <p id="buttons" class="buttons"><a href="#" id="btn-sites" onclick="fillTable('sites')">Sites</a><a href="#" id="btn-addresses" onclick="fillTable('addresses')">Addresses</a></p>
+          <p class="search"><input id="search" placeholder="search & filter entries" type="search"></p>
+          <table>
+            <tbody id="table">
+              <tr>
+                <td></td>
+                <td class="centered">.. loading url & address metadata ...</td>
+                <td></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    <div class="header">
+      <div class="logo">
+        <img src="https://polkadot.js.org/logo.svg" />
+        <div>polkadot{.js}/phishing</div>
+      </div>
+      <a href="https://github.com/polkadot-js/phishing">view on github</a>
+    </div>
+    <script>
+      if (window.self !== window.top) {
+        window.top.location.href = window.location.href;
+      }
+
+      const search = document.getElementById('search');
+      const style = document.createElement('style');
+      const table = document.getElementById('table');
+
+      document.head.appendChild(style);
+
+      let hue = Math.floor(Math.random() * 359);
+      let counter = 0;
+      let navTo = '';
+      let metaJson = [];
+      let addrJson;
+      let urlStatus;
+      let balances = [];
+
+      function draw () {
+        hue = (hue + 1) % 360;
+        document.body.style.background = `hsl(${hue}, 45%, 85%)`;
+        style.innerHTML = `a { color: hsl(${hue}, 45%, 45%) !important } .buttons a { border-color: hsl(${hue}, 45%, 45%) !important } .buttons .invert { background: hsl(${hue}, 45%, 45%) !important } input#search:focus { border-color: hsl(${hue}, 45%, 45%) }`;
+
+        setTimeout(() => window.requestAnimationFrame(draw), 100);
+      }
+
+      function onSearch (evt) {
+        const text = evt.target.value;
+        const trs = document.getElementsByTagName('tr');
+
+        for (let i = 0; i < trs.length; i++) {
+          const tr = trs[i];
+          const attr = tr.getAttribute('data-value');
+
+          if (attr && !attr.includes(text)) {
+            tr.classList.add('hidden');
+          } else {
+            tr.classList.remove('hidden');
+          }
+        }
+      }
+
+      function appendRow (date, url = '', status) {
+        const row = document.createElement('tr');
+        const a = document.createElement('td');
+        const b = document.createElement('td');
+        const c = document.createElement('td');
+
+        a.appendChild(document.createTextNode(url));
+
+        if (typeof date === 'string') {
+          b.appendChild(document.createTextNode(date));
+        } else {
+          b.appendChild(date);
+        }
+
+        if (typeof status === 'string') {
+          const s = document.createElement('span');
+
+          s.classList.add(status);
+          s.appendChild(document.createTextNode(status));
+          c.appendChild(s);
+        }
+
+        row.setAttribute('data-value', url);
+        row.appendChild(a);
+        row.appendChild(b);
+        row.appendChild(c);
+
+        table.appendChild(row);
+      }
+
+      function appendHeader (header) {
+        const row = document.createElement('tr');
+        const ab = document.createElement('td');
+        const c = document.createElement('td');
+
+        if (typeof header === 'string') {
+          ab.appendChild(document.createTextNode(header));
+        } else {
+          ab.appendChild(header);
+        }
+
+        ab.colSpan = 2;
+
+        row.appendChild(ab);
+        row.appendChild(c);
+        table.appendChild(row);
+      }
+
+      function fillAddressList (url, addresses) {
+        if (addresses && addresses.length) {
+          const c = document.createElement('h3');
+
+          c.appendChild(document.createTextNode(url));
+          appendHeader(c);
+
+          addresses.forEach((address) => {
+            const balance = balances.find(([a]) => a === address) || ['', '']
+
+            appendRow(balance[1], address);
+          });
+        }
+      }
+
+      function fillAddresses () {
+        metaJson.forEach(({ url }) => fillAddressList(url, addrJson[url]));
+
+        Object.entries(addrJson).forEach(([url, addresses]) => {
+          if (!metaJson.find((m) => m.url === url)) {
+            fillAddressList(url, addresses);
+          }
+        });
+      }
+
+      function fillSites (items = metaJson) {
+        if (navTo === 'sites') {
+          let prevMonth = '';
+          let countIndex = -1;
+          const count = items.reduce((count, { date }) => {
+            const thisMonth = date.split('-').slice(0, 2).join('-');
+
+            if (thisMonth !== prevMonth) {
+              count.push(0);
+              prevMonth = thisMonth;
+            }
+
+            count[count.length - 1] += 1;
+
+            return count;
+          }, []);
+
+          prevMonth = '';
+
+          items.forEach(({ date, url }, index) => {
+            const thisMonth = date.split('-').slice(0, 2).join('-');
+
+            if (thisMonth !== prevMonth) {
+              const c = document.createElement('h3');
+
+              countIndex++;
+              c.appendChild(document.createTextNode(`${thisMonth} (${count[countIndex]})`));
+              appendHeader(c);
+              prevMonth = thisMonth;
+            }
+
+            appendRow(date, url, urlStatus[index] ? 'active' : 'inactive');
+          });
+        }
+
+        document.getElementById('btn-sites').innerText = `Sites (${metaJson.length})`;
+      }
+
+      function fillTable (newNav) {
+        if (newNav !== navTo) {
+          if (navTo) {
+            document.getElementById(`btn-${navTo}`).classList = '';
+          }
+
+          document.getElementById(`btn-${newNav}`).classList = 'invert';
+
+          navTo = newNav;
+          table.innerHTML = '';
+
+          if (navTo === 'sites') {
+            fillSites();
+          } else {
+            fillAddresses();
+          }
+
+          search.focus();
+        }
+      }
+
+      async function fetchTimeout (url, options = {}) {
+        const controller = new AbortController();
+        const id = setTimeout(() => controller.abort(), 2500);
+        const response = await fetch(url, { ...options, signal: controller.signal });
+
+        clearTimeout(id);
+
+        return response;
+      }
+
+      async function isUp (url) {
+        // try {
+        //   await fetchTimeout(url, { method: 'HEAD', mode: 'no-cors' });
+
+        //   const response = await fetchTimeout(`https://proxy.dotapps.workers.dev/?${url}`, { follow: 'error' });
+
+        //   return response.status === 200;
+        // } catch (error) {
+        //   return false;
+        // }
+
+        return false;
+      }
+
+      async function getBalance (key) {
+        try {
+          const response = await fetchTimeout('https://polkadot.subscan.io/api/scan/search', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ key, page: 0, row: 1 })
+          });
+          const { data } = await response.json();
+          const [pre, post] = ((data && data.account.balance) || '0').split('.');
+
+          return [key, `${pre}.${`${post || ''}0000000000`.substr(0, 10)}`];
+        } catch (error) {
+          console.error(error);
+          return [key, ''];
+        }
+      }
+
+      async function main () {
+        draw();
+
+        const from = window.location.protocol === 'file:' ? 'https://polkadot.js.org/phishing/' : '';
+        const [addrBody, metaBody] = await Promise.all(['address', 'meta/index'].map((j) => fetchTimeout(`${from}${j}.json`)));
+        let metaMonths;
+
+        [addrJson, metaMonths] = await Promise.all([addrBody.json(), metaBody.json()]);
+
+        const addresses = Object
+          .values(addrJson)
+          .reduce((all, addrs) => {
+            addrs.forEach((a) => !all.includes(a) && all.push(a));
+
+            return all;
+          }, []);
+
+        [balances, urlStatus] = await Promise.all([
+          Promise.all(addresses.map(getBalance)),
+          Promise.all(metaJson.map(({ url }) => isUp(`https://${url}`)))
+        ]);
+
+        search.addEventListener('input', onSearch);
+        search.style.display = 'block';
+
+        document.getElementById('btn-addresses').innerText = `Addresses (${Object.values(addrJson).reduce((count, addrs) => count + addrs.length, 0)})`;
+        document.getElementById('btn-sites').innerText = `Sites (0)`;
+        document.getElementById('buttons').style.display = 'block';
+
+        fillTable('sites');
+
+        for (const month of metaMonths) {
+          const response = await fetchTimeout(`${from}meta/${month}.json`);
+          const items = await response.json();
+
+          for (const item of items) {
+            metaJson.push(item);
+          }
+
+          fillSites(items);
+        }
+      }
+
+      main();
+    </script>
+  </body>
+</html>

@@ -1,0 +1,11 @@
+{
+  "extends": "@polkadot/dev/config/tsconfig.json",
+  "compilerOptions": {
+    "composite": true,
+    "paths": {
+      "@polkadot/phishing": ["phishing/src"],
+      "@polkadot/phishing/*": ["phishing/src/*"]
+    },
+    "skipLibCheck": true
+  }
+ }
